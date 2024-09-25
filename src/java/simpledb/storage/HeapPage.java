@@ -75,8 +75,8 @@ public class HeapPage implements Page {
      * @return the number of tuples on this page
      */
     private int getNumTuples() {
-        // TODO: some code goes here
-        return 0;
+        int bitsPerTupleIncludingHeader = td.getSize() * 8 + 1;
+        return (BufferPool.getPageSize() * 8) / bitsPerTupleIncludingHeader;
 
     }
 
@@ -87,8 +87,11 @@ public class HeapPage implements Page {
      */
     private int getHeaderSize() {
 
-        // TODO: some code goes here
-        return 0;
+        int tuplesPerPage = getNumTuples();
+        int hb = (tuplesPerPage / 8);
+        if (hb * 8 < tuplesPerPage) hb++;
+
+        return hb;
 
     }
 
@@ -121,8 +124,7 @@ public class HeapPage implements Page {
      * @return the PageId associated with this page.
      */
     public HeapPageId getId() {
-        // TODO: some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return pid;
     }
 
     /**
@@ -255,7 +257,6 @@ public class HeapPage implements Page {
      */
     public void deleteTuple(Tuple t) throws DbException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -268,7 +269,6 @@ public class HeapPage implements Page {
      */
     public void insertTuple(Tuple t) throws DbException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -277,7 +277,6 @@ public class HeapPage implements Page {
      */
     public void markDirty(boolean dirty, TransactionId tid) {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -285,7 +284,6 @@ public class HeapPage implements Page {
      */
     public TransactionId isDirty() {
         // TODO: some code goes here
-        // Not necessary for lab1
         return null;      
     }
 
@@ -293,16 +291,20 @@ public class HeapPage implements Page {
      * Returns the number of unused (i.e., empty) slots on this page.
      */
     public int getNumUnusedSlots() {
-        // TODO: some code goes here
-        return 0;
+        int cnt = 0;
+        for (int i = 0; i < numSlots; i++)
+            if (!isSlotUsed(i))
+                cnt++;
+        return cnt;
     }
 
     /**
      * Returns true if associated slot on this page is filled.
      */
     public boolean isSlotUsed(int i) {
-        // TODO: some code goes here
-        return false;
+        int headerbit = i % 8;
+        int headerbyte = (i - headerbit) / 8;
+        return (header[headerbyte] & (1 << headerbit)) != 0;
     }
 
     /**
@@ -310,7 +312,6 @@ public class HeapPage implements Page {
      */
     private void markSlotUsed(int i, boolean value) {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -318,9 +319,75 @@ public class HeapPage implements Page {
      *         (note that this iterator shouldn't return tuples in empty slots!)
      */
     public Iterator<Tuple> iterator() {
-        // TODO: some code goes here
-        return null;
+        return new HeapPageIterator(this);
     }
 
+    // protected method used by the iterator to get the ith tuple
+    // out of this page
+    Tuple getTuple(int i) throws NoSuchElementException {
+
+        if (i >= tuples.length)
+            throw new NoSuchElementException();
+
+        try {
+            if (!isSlotUsed(i)) {
+                Debug.log(1, "HeapPage.getTuple: slot %d in %d:%d is not used", i, pid.getTableId(), pid.getPageNumber());
+                return null;
+            }
+
+            Debug.log(1, "HeapPage.getTuple: returning tuple %d", i);
+            return tuples[i];
+
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new NoSuchElementException();
+        }
+    }
 }
 
+/**
+ * Helper class that implements the Java Iterator for tuples on a HeapPage.
+ */
+class HeapPageIterator implements Iterator<Tuple> {
+    int curTuple = 0;
+    Tuple nextToReturn = null;
+    final HeapPage p;
+
+    public HeapPageIterator(HeapPage p) {
+        this.p = p;
+    }
+
+    public boolean hasNext() {
+        if (nextToReturn != null)
+            return true;
+
+        try {
+            while (true) {
+                nextToReturn = p.getTuple(curTuple++);
+                if (nextToReturn != null)
+                    return true;
+            }
+        } catch (NoSuchElementException e) {
+            return false;
+        }
+    }
+
+    public Tuple next() {
+        Tuple next = nextToReturn;
+
+        if (next == null) {
+            if (hasNext()) {
+                next = nextToReturn;
+                nextToReturn = null;
+                return next;
+            } else
+                throw new NoSuchElementException();
+        } else {
+            nextToReturn = null;
+            return next;
+        }
+    }
+
+    public void remove() {
+        throw new UnsupportedOperationException();
+    }
+}

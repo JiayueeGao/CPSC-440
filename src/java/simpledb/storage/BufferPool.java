@@ -38,13 +38,17 @@ public class BufferPool {
      */
     public static final int DEFAULT_PAGES = 50;
 
+    final int numPages;   // number of pages -- currently, not enforced
+    final ConcurrentMap<PageId, Page> pages; // hash table storing current pages in memory
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // TODO: some code goes here
+        this.numPages = numPages;
+        this.pages = new ConcurrentHashMap<>();
     }
 
     public static int getPageSize() {
@@ -78,8 +82,23 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return null;
+        // XXX Yuan points out that HashMap is not synchronized, so this is buggy.
+        // XXX TODO(ghuo): do we really know enough to implement NO STEAL here?
+        //     won't we still evict pages?
+        Page p;
+        synchronized (this) {
+            p = pages.get(pid);
+            if (p == null) {
+                if (pages.size() >= numPages) {
+                    evictPage();
+                }
+
+                p = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+                pages.put(pid, p);
+            }
+        }
+
+        return p;
     }
 
     /**
@@ -145,7 +164,6 @@ public class BufferPool {
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -164,7 +182,6 @@ public class BufferPool {
     public void deleteTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -174,7 +191,6 @@ public class BufferPool {
      */
     public synchronized void flushAllPages() throws IOException {
         // TODO: some code goes here
-        // not necessary for lab1
 
     }
 
@@ -189,7 +205,6 @@ public class BufferPool {
      */
     public synchronized void removePage(PageId pid) {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -199,7 +214,6 @@ public class BufferPool {
      */
     private synchronized void flushPage(PageId pid) throws IOException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
     /**
@@ -216,7 +230,6 @@ public class BufferPool {
      */
     private synchronized void evictPage() throws DbException {
         // TODO: some code goes here
-        // not necessary for lab1
     }
 
 }

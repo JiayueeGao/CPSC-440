@@ -20,6 +20,14 @@ public class SeqScan implements OpIterator {
 
     private static final long serialVersionUID = 1L;
 
+    private boolean isOpen = false;
+    private final TransactionId tid;
+    private TupleDesc myTd;
+    private transient DbFileIterator it;
+    //    private transient int tableid;
+    private String tableName;
+    private String alias;
+
     /**
      * Creates a sequential scan over the specified table as a part of the
      * specified transaction.
@@ -34,7 +42,8 @@ public class SeqScan implements OpIterator {
      *                   tableAlias.null, or null.null).
      */
     public SeqScan(TransactionId tid, int tableid, String tableAlias) {
-        // TODO: some code goes here
+        this.tid = tid;
+        reset(tableid, tableAlias);
     }
 
     /**
@@ -42,15 +51,14 @@ public class SeqScan implements OpIterator {
      *         be the actual name of the table in the catalog of the database
      */
     public String getTableName() {
-        return null;
+        return this.tableName;
     }
 
     /**
      * @return Return the alias of the table this operator scans.
      */
     public String getAlias() {
-        // TODO: some code goes here
-        return null;
+        return this.alias;
     }
 
     /**
@@ -65,7 +73,22 @@ public class SeqScan implements OpIterator {
      *                   tableAlias.null, or null.null).
      */
     public void reset(int tableid, String tableAlias) {
-        // TODO: some code goes here
+        //        this.tableid = tableid;
+        this.isOpen = false;
+        this.alias = tableAlias;
+        this.tableName = Database.getCatalog().getTableName(tableid);
+        this.it = Database.getCatalog().getDatabaseFile(tableid).iterator(tid);
+        myTd = Database.getCatalog().getTupleDesc(tableid);
+        String[] newNames = new String[myTd.numFields()];
+        Type[] newTypes = new Type[myTd.numFields()];
+        for (int i = 0; i < myTd.numFields(); i++) {
+            String name = myTd.getFieldName(i);
+            Type t = myTd.getFieldType(i);
+
+            newNames[i] = tableAlias + "." + name;
+            newTypes[i] = t;
+        }
+        myTd = new TupleDesc(newTypes, newNames);
     }
 
     public SeqScan(TransactionId tid, int tableId) {
@@ -73,7 +96,11 @@ public class SeqScan implements OpIterator {
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+        if (isOpen)
+            throw new DbException("double open on one OpIterator.");
+
+        it.open();
+        isOpen = true;
     }
 
     /**
@@ -87,27 +114,32 @@ public class SeqScan implements OpIterator {
      *         prefixed with the tableAlias string from the constructor.
      */
     public TupleDesc getTupleDesc() {
-        // TODO: some code goes here
-        return null;
+        return myTd;
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return false;
+        if (!isOpen)
+            throw new IllegalStateException("iterator is closed");
+        return it.hasNext();
     }
 
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return null;
+        if (!isOpen)
+            throw new IllegalStateException("iterator is closed");
+
+        return it.next();
+
     }
 
     public void close() {
-        // TODO: some code goes here
+        it.close();
+        isOpen = false;
     }
 
     public void rewind() throws DbException, NoSuchElementException,
             TransactionAbortedException {
-        // TODO: some code goes here
+        close();
+        open();
     }
 }
