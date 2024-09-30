@@ -20,6 +20,11 @@ public class Delete extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    private OpIterator child;
+    private final TupleDesc returnTD;
+    private final TransactionId tid;
+    private boolean processed = false;
+
     /**
      * Constructor specifying the transaction that this delete belongs to as
      * well as the child to read from.
@@ -28,24 +33,32 @@ public class Delete extends Operator {
      * @param child The child operator from which to read tuples for deletion
      */
     public Delete(TransactionId t, OpIterator child) {
-        // TODO: some code goes here
+        this.child = child;
+        this.tid = t;
+
+        // we return a 1-field tuple
+        Type[] typeAr = new Type[1];
+        typeAr[0] = Type.INT_TYPE;
+        this.returnTD = new TupleDesc(typeAr);
     }
 
     public TupleDesc getTupleDesc() {
-        // TODO: some code goes here
-        return null;
+        return returnTD;
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+        child.open();
+        super.open();
     }
 
     public void close() {
-        // TODO: some code goes here
+        super.close();
+        child.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+        child.close();
+        child.open();
     }
 
     /**
@@ -58,19 +71,37 @@ public class Delete extends Operator {
      * @see BufferPool#deleteTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return null;
+
+        if (processed)
+            return null;
+
+        int count = 0;
+        while (child.hasNext()) {
+            Tuple t = child.next();
+            try {
+                Database.getBufferPool().deleteTuple(tid, t);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            count++;
+        }
+
+        // finished scanning
+        // generate a new "delete count" tuple
+        Tuple tup = new Tuple(returnTD);
+        tup.setField(0, new IntField(count));
+        processed = true;
+        return tup;
     }
 
     @Override
     public OpIterator[] getChildren() {
-        // TODO: some code goes here
-        return null;
+        return new OpIterator[]{this.child};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // TODO: some code goes here
+        this.child = children[0];
     }
 
 }

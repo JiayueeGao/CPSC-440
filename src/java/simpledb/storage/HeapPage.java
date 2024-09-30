@@ -18,6 +18,8 @@ import java.util.NoSuchElementException;
  * @see BufferPool
  */
 public class HeapPage implements Page {
+    private volatile boolean dirty = false;
+    private volatile TransactionId dirtier = null;
 
     final HeapPageId pid;
     final TupleDesc td;
@@ -256,7 +258,12 @@ public class HeapPage implements Page {
      *                     already empty.
      */
     public void deleteTuple(Tuple t) throws DbException {
-        // TODO: some code goes here
+        RecordId rid = t.getRecordId();
+        if ((rid.getPageId().getPageNumber() != pid.getPageNumber()) || (rid.getPageId().getTableId() != pid.getTableId()))
+            throw new DbException("tried to delete tuple on invalid page or table");
+        if (!isSlotUsed(rid.getTupleNumber()))
+            throw new DbException("tried to delete null tuple.");
+        markSlotUsed(rid.getTupleNumber(), false);
     }
 
     /**
@@ -268,7 +275,26 @@ public class HeapPage implements Page {
      *                     is mismatch.
      */
     public void insertTuple(Tuple t) throws DbException {
-        // TODO: some code goes here
+
+        if (!t.getTupleDesc().equals(td))
+            throw new DbException("type mismatch, in addTuple");
+
+        int goodSlot = -1;
+        for (int i = 0; i < numSlots; i++) {
+            if (!isSlotUsed(i) && goodSlot == -1) {
+                goodSlot = i;
+                break;
+            }
+
+        }
+        if (goodSlot == -1)
+            throw new DbException("called addTuple on page with no empty slots.");
+
+        markSlotUsed(goodSlot, true);
+        Debug.log(1, "HeapPage.addTuple: new tuple, tableId = %d pageId = %d slotId = %d", pid.getTableId(), pid.getPageNumber(), goodSlot);
+        RecordId rid = new RecordId(pid, goodSlot);
+        t.setRecordId(rid);
+        tuples[goodSlot] = t;
     }
 
     /**
@@ -276,15 +302,19 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     public void markDirty(boolean dirty, TransactionId tid) {
-        // TODO: some code goes here
+        //Debug.println("HeapPage.markDirty: " + pid.getTableId() + ":" + pid.pageno() + " dirty = " + dirty, 1);
+        this.dirty = dirty;
+        if (dirty) this.dirtier = tid;
     }
 
     /**
      * Returns the tid of the transaction that last dirtied this page, or null if the page is not dirty
      */
     public TransactionId isDirty() {
-        // TODO: some code goes here
-        return null;      
+        if (this.dirty)
+            return this.dirtier;
+        else
+            return null;
     }
 
     /**
@@ -311,7 +341,14 @@ public class HeapPage implements Page {
      * Abstraction to fill or clear a slot on this page.
      */
     private void markSlotUsed(int i, boolean value) {
-        // TODO: some code goes here
+        int headerbit = i % 8;
+        int headerbyte = (i - headerbit) / 8;
+
+        Debug.log(1, "HeapPage.setSlot: setting slot %d to %b", i, value);
+        if (value)
+            header[headerbyte] |= 1 << headerbit;
+        else
+            header[headerbyte] &= (0xFF ^ (1 << headerbit));
     }
 
     /**

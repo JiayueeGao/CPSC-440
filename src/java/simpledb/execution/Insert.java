@@ -7,6 +7,11 @@ import simpledb.transaction.TransactionAbortedException;
 import simpledb.storage.Tuple;
 import simpledb.common.Type;
 
+import simpledb.common.Database;
+import simpledb.storage.BufferPool;
+import simpledb.storage.IntField;
+import java.io.IOException;
+
 /**
  * Inserts tuples read from the child operator into the tableId specified in the
  * constructor
@@ -14,6 +19,12 @@ import simpledb.common.Type;
 public class Insert extends Operator {
 
     private static final long serialVersionUID = 1L;
+
+    private OpIterator child;
+    private final int tableId;
+    private final TransactionId tid;
+    private final TupleDesc returnTD;
+    private boolean processed = false;
 
     /**
      * Constructor.
@@ -26,24 +37,38 @@ public class Insert extends Operator {
      */
     public Insert(TransactionId t, OpIterator child, int tableId)
             throws DbException {
-        // TODO: some code goes here
+        this.child = child;
+        this.tableId = tableId;
+        this.tid = t;
+
+        // verify that TupleDescriptors are the same
+        if (!child.getTupleDesc().equals(
+                Database.getCatalog().getTupleDesc(tableId)))
+            throw new DbException("incompatible tuple descriptors for Insert");
+
+        // we return a 1-field tuple
+        Type[] typeAr = new Type[1];
+        typeAr[0] = Type.INT_TYPE;
+        returnTD = new TupleDesc(typeAr);
     }
 
     public TupleDesc getTupleDesc() {
-        // TODO: some code goes here
-        return null;
+        return returnTD;
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+        child.open();
+        super.open();
     }
 
     public void close() {
-        // TODO: some code goes here
+        super.close();
+        child.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // TODO: some code goes here
+        child.close();
+        child.open();
     }
 
     /**
@@ -60,18 +85,35 @@ public class Insert extends Operator {
      * @see BufferPool#insertTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // TODO: some code goes here
-        return null;
+        if (processed)
+            return null;
+
+        int count = 0;
+        while (child.hasNext()) {
+            Tuple t = child.next();
+            try {
+                Database.getBufferPool().insertTuple(tid, tableId, t);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            count++;
+        }
+
+        // finished scanning
+        // generate a new "insert count" tuple
+        Tuple tup = new Tuple(returnTD);
+        tup.setField(0, new IntField(count));
+        processed = true;
+        return tup;
     }
 
     @Override
     public OpIterator[] getChildren() {
-        // TODO: some code goes here
-        return null;
+        return new OpIterator[]{this.child};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // TODO: some code goes here
+        this.child = children[0];
     }
 }
