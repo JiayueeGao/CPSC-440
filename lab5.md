@@ -1,8 +1,8 @@
 # CPSC 440/540 Lab 5: B+ Tree Index
 
-**Assigned:** Thursday November 2, 2023
+**Assigned:** Sunday November 3, 2024
 
-**Due:** Friday November 17, 2023 by 11:59 PM ET
+**Due:** Sunday November 17, 2024 by 11:59 PM ET
 
 
 ## 0. Introduction
@@ -31,18 +31,18 @@ pointers.
 
 ## 1. Getting started
 
-You should begin with the code you submitted for Lab 4 (if you did not submit
-code for Lab 4, or your solution didn't work properly, contact us to discuss
-options). Additionally, we are providing extra source and test files for this
+You should begin with the code you submitted for Lab 4 or the solutions
+that is provided by us. 
+Additionally, we are providing extra source and test files for this
 lab that are not in the original code distribution you received.
 
 You will need to add these new files to your release and set up your lab4
 branch. The easiest way to do this is to change to your project directory
-(probably called `CPSC-440-FA23`), set up the branch, and pull from the
+(probably called `CPSC-440-FA24`), set up the branch, and pull from the
 master GitHub repository:
 
 ```bash
-$ cd CPSC-440-FA23
+$ cd CPSC-440-FA24
 $ git pull upstream main
 ```
 
